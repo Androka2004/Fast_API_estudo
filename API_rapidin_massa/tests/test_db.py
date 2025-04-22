@@ -1,19 +1,28 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from dataclasses import asdict
 
-from api_rapidin_massa.models import Mano, table_registry
+from sqlalchemy import select
+
+from api_rapidin_massa.models import Mano
 
 
-def test_creador_suarrio():
-    engine = create_engine('sqlite:///:memory:')
-    table_registry.metadata.create_all(engine)
-
-    with Session(engine) as session:
+def test_creador_suarrio(session, mock_db_time):
+    with mock_db_time(model=Mano) as time:
         suarrio = Mano(
             username='Raios Funde', email='teste@mail.com', password='lombada'
         )
+
         session.add(suarrio)
         session.commit()
-        session.refresh(suarrio)
 
-    assert suarrio.id == 1
+    resultado = session.scalar(
+        select(Mano).where(Mano.email == 'teste@mail.com')
+    )
+
+    assert asdict(resultado) == {
+        'id': 1,
+        'username': 'Raios Funde',
+        'password': 'lombada',
+        'email': 'teste@mail.com',
+        'created_at': time,
+        'updated_at': time,
+    }
