@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,7 @@ from api_rapidin_massa.schemas import (
     UserPublic,
     UserSchema,
 )
+from api_rapidin_massa.security import get_passespada_hash, analisar_passespada
 
 app = FastAPI()
 
@@ -40,7 +42,9 @@ def criando_usuario(user: UserSchema, session: Session = Depends(get_session)):
             )
 
     db_user = Mano(
-        username=user.username, password=user.password, email=user.email
+        username=user.username,
+        password=get_passespada_hash(user.password),
+        email=user.email,
     )
     session.add(db_user)
     session.commit()
@@ -80,7 +84,7 @@ def atualizando_usuarios(
 
     db_user.username = user.username
     db_user.email = user.email
-    db_user.password = user.password
+    db_user.password = get_passespada_hash(user.password)
     session.commit()
     session.refresh(db_user)
 
@@ -101,3 +105,20 @@ def pulverizando_usuarios(
     session.commit
 
     return {'message': 'Mano deleted'}
+
+
+@app.post('/token')
+def autenticar_token_acesso(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: Session = Depends(get_session)
+):
+    user = session.scalar(
+        select(Mano).where(Mano.email == form_data.username)
+    )
+    
+    if not user or not analisar_passespada(form_data.password, user.password):
+        raise HTTPException(
+            status_code=400, detail="email ou senha incorreta"
+        )
+    
+    
