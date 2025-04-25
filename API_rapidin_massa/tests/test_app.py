@@ -93,4 +93,3 @@ def test_pulverizar_mano(client, user, token):
     assert response.json() == {'message': 'Mano deleted'}
 
 
-# TESTES DE ERRO ###
