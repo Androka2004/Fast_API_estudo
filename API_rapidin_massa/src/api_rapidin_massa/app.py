@@ -10,10 +10,16 @@ from api_rapidin_massa.models import Mano
 from api_rapidin_massa.schemas import (
     DatabasePublico,
     Message,
+    Token,
     UserPublic,
     UserSchema,
 )
-from api_rapidin_massa.security import get_passespada_hash, analisar_passespada
+from api_rapidin_massa.security import (
+    analisar_passespada,
+    gerador_token_acesso,
+    get_passespada_hash,
+    puxar_mano_atual,
+)
 
 app = FastAPI()
 
@@ -63,12 +69,14 @@ def trazendo_usuarios(
 
 @app.put('/users/{user_id}', response_model=UserPublic)
 def atualizando_usuarios(
-    user_id: int, user: UserSchema, session: Session = Depends(get_session)
+    user_id: int,
+    user: UserSchema,
+    session: Session = Depends(get_session),
+    current_user=Depends(puxar_mano_atual),
 ):
-    db_user = session.scalar(select(Mano).where(Mano.id == user_id))
-    if not db_user:
+    if current_user.id != user_id:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Mano not found'
+            status_code=HTTPStatus.BAD_REQUEST, detail='Permissão negada'
         )
 
     db_confirm_unique = session.scalar(
@@ -76,49 +84,51 @@ def atualizando_usuarios(
             (Mano.username == user.username) | (Mano.email == user.email)
         )
     )
-    if db_confirm_unique and db_confirm_unique.id != db_user.id:
+    if db_confirm_unique and db_confirm_unique.id != current_user.id:
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
             detail='Username or Email already exists',
         )
 
-    db_user.username = user.username
-    db_user.email = user.email
-    db_user.password = get_passespada_hash(user.password)
+    current_user.username = user.username
+    current_user.email = user.email
+    current_user.password = get_passespada_hash(user.password)
     session.commit()
-    session.refresh(db_user)
+    session.refresh(current_user)
 
-    return db_user
+    return current_user
 
 
 @app.delete('/users/{user_id}', response_model=Message)
 def pulverizando_usuarios(
-    user_id: int, session: Session = Depends(get_session)
+    user_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(puxar_mano_atual),
 ):
-    db_user = session.scalar(select(Mano).where(Mano.id == user_id))
-    if not db_user:
+    if current_user.id != user_id:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail='Mano not found'
+            status_code=HTTPStatus.BAD_REQUEST, detail='Permissão Negada'
         )
 
-    session.delete(db_user)
-    session.commit
+    session.delete(current_user)
+    session.commit()
 
     return {'message': 'Mano deleted'}
 
 
-@app.post('/token')
+@app.post('/token', response_model=Token)
 def autenticar_token_acesso(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
-    user = session.scalar(
-        select(Mano).where(Mano.email == form_data.username)
-    )
-    
+    user = session.scalar(select(Mano).where(Mano.email == form_data.username))
+
     if not user or not analisar_passespada(form_data.password, user.password):
         raise HTTPException(
-            status_code=400, detail="email ou senha incorreta"
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail='email ou senha incorreta',
         )
-    
-    
+
+    acess_token = gerador_token_acesso({'sub': user.email})
+
+    return {'acess_token': acess_token, 'token_type': 'Bearer'}

@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 from api_rapidin_massa.app import app
 from api_rapidin_massa.database import get_session
 from api_rapidin_massa.models import Mano, table_registry
+from api_rapidin_massa.security import get_passespada_hash
 
 
 @contextmanager
@@ -62,12 +63,26 @@ def mock_db_time():
 
 @pytest.fixture
 def user(session):
+    pwd = 'lombada'
+
     user = Mano(
-        username='Raios Funde', email='teste@mail.com', password='lombada'
+        username='Raios Funde',
+        email='teste@mail.com',
+        password=get_passespada_hash(pwd),
     )
 
     session.add(user)
     session.commit()
     session.refresh(user)
 
+    user.clean_password = pwd
     return user
+
+
+@pytest.fixture
+def token(client, user):
+    response = client.post(
+        '/token',
+        data={'username': user.email, 'password': user.clean_password},
+    )
+    return response.json()['acess_token']

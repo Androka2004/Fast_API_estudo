@@ -13,7 +13,8 @@ dependencies = [
     "pydantic-settings (>=2.9.1,<3.0.0)",
     "alembic (>=1.15.2,<2.0.0)",
     "pwdlib[argon2] (>=0.2.1,<0.3.0)",
-    "python-multipart (>=0.0.20,<0.0.21)"
+    "python-multipart (>=0.0.20,<0.0.21)",
+    "pyjwt (>=2.10.1,<3.0.0)"
 ]
 
 [tool.poetry]
@@ -38,6 +39,8 @@ run = 'fastapi dev src/api_rapidin_massa/app.py'
 pre_test = 'task lint'
 test = 'pytest -s -x --cov=src -vv'
 post_test = 'coverage html'
+upgrade = 'alembic upgrade head'
+migrate = 'alembic revision --autogenerate -m'
 
 [tool.ruff]
 line-length = 79

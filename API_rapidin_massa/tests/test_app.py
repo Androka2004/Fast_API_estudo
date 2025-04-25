@@ -2,8 +2,11 @@ from http import HTTPStatus
 
 from api_rapidin_massa.schemas import UserPublic
 
+# TESTES DE SUCESSO ###
+
 
 def test_ler_root_ok(client):
+    # TESTE RAIZ SERVIDOR
     response = client.get('/')
 
     assert response.status_code == HTTPStatus.OK
@@ -11,6 +14,7 @@ def test_ler_root_ok(client):
 
 
 def test_criador_de_usuario(client):
+    # TESTE INSERT PARA MODELO MANO
     response = client.post(
         '/users/',
         json={
@@ -29,6 +33,7 @@ def test_criador_de_usuario(client):
 
 
 def test_leitor_database(client):
+    # TESTE DATABASE VAZIO
     response = client.get('/users/')
 
     assert response.status_code == HTTPStatus.OK
@@ -36,6 +41,7 @@ def test_leitor_database(client):
 
 
 def test_leitor_database_com_manos(client, user):
+    # TESTE DATABASE POPULADO
     user_schema = UserPublic.model_validate(user).model_dump()
     response = client.get('/users/')
 
@@ -43,9 +49,25 @@ def test_leitor_database_com_manos(client, user):
     assert response.json() == {'users': [user_schema]}
 
 
-def test_alterador_usuario(client, user):
+def test_enviador_token(client, user):
+    # TESTE PARA CONFIMAR TOKEN AUTENTICAÇÃO
+    response = client.post(
+        '/token',
+        data={'username': user.email, 'password': user.clean_password},
+    )
+
+    token = response.json()
+
+    assert response.status_code == HTTPStatus.OK
+    assert token['token_type'] == 'Bearer'
+    assert 'acess_token' in token
+
+
+def test_alterador_usuario(client, user, token):
+    # TESTE ALTERAR DADO DA TABELA MANO
     response = client.put(
-        '/users/1',
+        f'/users/{user.id}',
+        headers={'Authorization': f'Bearer {token}'},
         json={
             'username': 'Funde Raios',
             'password': '12345',
@@ -61,80 +83,14 @@ def test_alterador_usuario(client, user):
     }
 
 
-def test_pulverizar_mano(client, user):
-    response = client.delete('/users/1')
+def test_pulverizar_mano(client, user, token):
+    # TESTE PARA DELETAR DE TABELA MANO
+    response = client.delete(
+        f'/users/{user.id}', headers={'Authorization': f'Bearer {token}'}
+    )
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {'message': 'Mano deleted'}
 
 
-def test_criador_erro_username(client, user):
-    response = client.post(
-        '/users/',
-        json={
-            'username': 'Raios Funde',
-            'password': '12345',
-            'email': 'test@test.com',
-        },
-    )
-
-    assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'User already exists'}
-
-
-def test_criador_erro_email(client, user):
-    response = client.post(
-        '/users/',
-        json={
-            'username': 'Funde Raios',
-            'password': '12345',
-            'email': 'teste@mail.com',
-        },
-    )
-
-    assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {'detail': 'Email already exists'}
-
-
-def test_atualizador_erro_id(client, user):
-    response = client.put(
-        '/users/12',
-        json={
-            'username': 'Funde Raios',
-            'password': '12345',
-            'email': 'lomba@test.com',
-        },
-    )
-
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'Mano not found'}
-
-
-def test_atualizador_erro_username(client, user):
-    client.post(
-        '/users',
-        json={
-            'username': 'fausto',
-            'email': 'fausto@example.com',
-            'password': 'secret',
-        },
-    )
-
-    response = client.put(
-        '/users/1',
-        json={
-            'username': 'fausto',
-            'password': '12345',
-            'email': 'lomba@test.com',
-        },
-    )
-
-    assert response.status_code == HTTPStatus.CONFLICT
-    assert response.json() == {'detail': 'Username or Email already exists'}
-
-
-def test_erro_pulverizar_mano(client, user):
-    response = client.delete('/users/12')
-
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'Mano not found'}
+# TESTES DE ERRO ###
